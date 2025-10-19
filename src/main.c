@@ -28,6 +28,29 @@ enum state programState = WAITING;
 // Exercise 3: Global variable for ambient light
 uint32_t ambientLight;
 
+//IMU orientation struct
+//acceleration at rest is +- 1
+struct acceleration{
+    float ax;
+    float ay;
+    float az;
+};
+
+struct gyroscope{
+    float gx;
+    float gy;
+    float gz;
+};
+
+struct orientatio{
+    struct acceleration acc;
+    struct gyroscope gyro;
+    float t; //not needed, replace with time?
+    float time;
+}orientations;
+
+
+
 static void btn_fxn(uint gpio, uint32_t eventMask) {
     // Tehtävä 1: Vaihda LEDin tila.
     //            Tarkista SDK, ja jos et löydä vastaavaa funktiota, sinun täytyy toteuttaa se itse.
@@ -39,41 +62,55 @@ static void btn_fxn(uint gpio, uint32_t eventMask) {
 
 }
 
+static void orientation_task (void *arg){
+    (void)arg;
+
+    //IMU
+    init_i2c_default();
+
+    if (init_ICM42670() == 0)
+        {
+            ICM42670_start_with_default_values();
+        }
+
+    while (1) {
+        //TODO aika
+        if(programState == WAITING){
+            if (ICM42670_read_sensor_data(&orientations.acc.ax, &orientations.acc.ay, &orientations.acc.az, 
+                &orientations.gyro.gx, &orientations.gyro.gy, &orientations.gyro.gz, &orientations.t) == 0)
+            {
+              programState = DATA_READY;  
+            }else{
+                printf("Reading orientation failed");
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
+}
+
 static void sensor_task(void *arg){
     (void)arg;
     // Tehtävä 2: Alusta valoisuusanturi. Etsi SDK-dokumentaatiosta sopiva funktio.
-    // Exercise 2: Init the light sensor. Find in the SDK documentation the adequate function.
     init_veml6030();
    
     for(;;){
         
         // Tehtävä 2: Muokkaa tästä eteenpäin sovelluskoodilla. Kommentoi seuraava rivi.
-        //             
-        // Exercise 2: Modify with application code here. Comment following line.
-        //             Read sensor data and print it out as string; 
         //tight_loop_contents();
+        
+
+        
 
         if (programState == WAITING){
-            ambientLight = veml6030_read_light();
-            programState = DATA_READY;
-
+           // ambientLight = veml6030_read_light();            
         }
+        
 
         // Tehtävä 3:  Muokkaa aiemmin Tehtävässä 2 tehtyä koodia ylempänä.
         //             Jos olet oikeassa tilassa, tallenna anturin arvo tulostamisen sijaan
         //             globaaliin muuttujaan.
         //             Sen jälkeen muuta tilaa.
-        // Exercise 3: Modify previous code done for Exercise 2, in previous lines. 
-        //             If you are in adequate state, instead of printing save the sensor value 
-        //             into the global variable.
-        //             After that, modify state
 
-
-
-
-
-        
-        // Exercise 2. Just for sanity check. Please, comment this out
         // Tehtävä 2: Just for sanity check. Please, comment this out
         //printf("sensorTask\n");
 
@@ -98,11 +135,12 @@ static void print_task(void *arg){
         if (programState == DATA_READY)
         {
             programState = WAITING;
-            printf("%u\n", ambientLight);
-        }
-        
-        
 
+            printf("Kiihtyvyys (1g = m/s^2): x=%f y=%f z=%f\n", orientations.acc.ax, orientations.acc.ay, orientations.acc.az);
+            printf("Kulmanopeus (astetta/s): x=%f y=%f z=%f\n", orientations.gyro.gx, orientations.gyro.gy, orientations.gyro.gz);
+            printf("Lämpötila: %.2f\n", orientations.t);
+            //printf("%u\n", ambientLight);
+        }
 
         
         // Exercise 4. Use the usb_serial_print() instead of printf or similar in the previous line.
@@ -121,12 +159,6 @@ static void print_task(void *arg){
         //            Tällä menetelmällä kirjoitettu data tulee antaa CSV-muodossa:
         //            timestamp, luminance
 
-
-
-
-        // Exercise 3. Just for sanity check. Please, comment this out
-        // Tehtävä 3: Just for sanity check. Please, comment this out
-        printf("printTask\n");
         
         // Do not remove this
         vTaskDelay(pdMS_TO_TICKS(1000));
@@ -182,10 +214,6 @@ int main() {
 
     // Register the generic callback used for toggling RED LED state
     gpio_set_irq_enabled_with_callback(BUTTON1, GPIO_IRQ_EDGE_RISE, true, btn_fxn);
-
-
-
-    
     
     TaskHandle_t hSensorTask, hPrintTask, hUSB = NULL;
 
@@ -200,6 +228,8 @@ int main() {
     #endif
     */
 
+    TaskHandle_t myOrientationHandle = NULL; //IMU task
+
 
     // Create the tasks with xTaskCreate
     BaseType_t result = xTaskCreate(sensor_task, // (en) Task function
@@ -211,6 +241,11 @@ int main() {
 
     if(result != pdPASS) {
         printf("Sensor task creation failed\n");
+        return 0;
+    }
+    result = xTaskCreate(orientation_task, "orientation", 1024, NULL, 2, &myOrientationHandle);
+    if(result != pdPASS){
+        printf("orientation_task creation failed");
         return 0;
     }
     result = xTaskCreate(print_task,  // (en) Task function
