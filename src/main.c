@@ -49,7 +49,15 @@ struct orientatio{
     float time;
 }orientations;
 
+float acc_x[20];
+float acc_y[20];
+float acc_z[20];
 
+float gyro_x[20];
+float gyro_y[20];
+float gyro_z[20];
+
+int save_index = 0;
 
 static void btn_fxn(uint gpio, uint32_t eventMask) {
     // Tehtävä 1: Vaihda LEDin tila.
@@ -79,12 +87,26 @@ static void orientation_task (void *arg){
             if (ICM42670_read_sensor_data(&orientations.acc.ax, &orientations.acc.ay, &orientations.acc.az, 
                 &orientations.gyro.gx, &orientations.gyro.gy, &orientations.gyro.gz, &orientations.t) == 0)
             {
-              programState = DATA_READY;  
+                if (save_index == 19){
+                   programState = DATA_READY; 
+                }else{
+                   for (int i = save_index; i < 20 ; i++){
+                    acc_x[i] = orientations.acc.ax;
+                    acc_y[i] = orientations.acc.ay;
+                    acc_z[i] = orientations.acc.az;
+                    gyro_x[i] = orientations.gyro.gx;
+                    gyro_y[i] = orientations.gyro.gy;
+                    gyro_z[i] = orientations.gyro.gz;
+                    save_index++;
+                    } 
+                }
+                
+                
+                
             }else{
                 printf("Reading orientation failed");
             }
         }
-        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 
@@ -119,6 +141,8 @@ static void sensor_task(void *arg){
     }
 }
 
+
+
 static void print_task(void *arg){
     (void)arg;
     
@@ -136,8 +160,32 @@ static void print_task(void *arg){
         {
             programState = WAITING;
 
-            printf("Kiihtyvyys (1g = m/s^2): x=%f y=%f z=%f\n", orientations.acc.ax, orientations.acc.ay, orientations.acc.az);
-            printf("Kulmanopeus (astetta/s): x=%f y=%f z=%f\n", orientations.gyro.gx, orientations.gyro.gy, orientations.gyro.gz);
+            printf("Kiihtyvyys (1g = m/s^2): x=");
+            for (int i = 0; i < 20; i++){
+                printf("%f, ", acc_x[i]);
+            }
+            printf("\nKiihtyvyys (1g = m/s^2): y=");
+            for (int i = 0; i < 20; i++){
+                printf("%f, ", acc_y[i]);
+            }
+            printf("\nKiihtyvyys (1g = m/s^2): z=");
+            for (int i = 0; i < 20; i++){
+                printf("%f, ", acc_z[i]);
+            }
+
+            printf("\nKulmanopeus: x=");
+            for (int i = 0; i < 20; i++){
+                printf("%f, ", gyro_x[i]);
+            }
+            printf("\nKulmanopeus: y=");
+            for (int i = 0; i < 20; i++){
+                printf("%f, ", gyro_y[i]);
+            }
+            printf("\nKulmanopeus: z=");
+            for (int i = 0; i < 20; i++){
+                printf("%f, ", gyro_z[i]);
+            }
+            
             printf("Lämpötila: %.2f\n", orientations.t);
             //printf("%u\n", ambientLight);
         }
