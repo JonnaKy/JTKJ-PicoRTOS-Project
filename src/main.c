@@ -35,7 +35,7 @@ struct acceleration{
     float ay;
     float az;
 };
-
+//These twi structs could also be arrays?
 struct gyroscope{
     float gx;
     float gy;
@@ -87,18 +87,18 @@ static void orientation_task (void *arg){
             if (ICM42670_read_sensor_data(&orientations.acc.ax, &orientations.acc.ay, &orientations.acc.az, 
                 &orientations.gyro.gx, &orientations.gyro.gy, &orientations.gyro.gz, &orientations.t) == 0)
             {
-                if (save_index == 19){
-                   programState = DATA_READY; 
-                }else{
-                   for (int i = save_index; i < 20 ; i++){
-                    acc_x[i] = orientations.acc.ax;
-                    acc_y[i] = orientations.acc.ay;
-                    acc_z[i] = orientations.acc.az;
-                    gyro_x[i] = orientations.gyro.gx;
-                    gyro_y[i] = orientations.gyro.gy;
-                    gyro_z[i] = orientations.gyro.gz;
-                    save_index++;
-                    } 
+                acc_x[save_index] = orientations.acc.ax;
+                acc_y[save_index] = orientations.acc.ay;
+                acc_z[save_index] = orientations.acc.az;
+                gyro_x[save_index] = orientations.gyro.gx;
+                gyro_y[save_index] = orientations.gyro.gy;
+                gyro_z[save_index] = orientations.gyro.gz;
+
+                save_index++;
+
+                if (save_index >= 20) {
+                    save_index = 0;
+                    programState = DATA_READY;
                 }
                 
                 
